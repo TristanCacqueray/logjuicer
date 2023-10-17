@@ -175,7 +175,7 @@
           pkgs.writeShellScriptBin "logreduce-release" ''
             export PATH=$PATH:${pkgs.gzip}/bin:${pkgs.skopeo}/bin
             echo $GH_TOKEN | skopeo login --username $GH_USERNAME --password-stdin ghcr.io
-            ./${container} | gzip --fast | skopeo copy docker-archive:/dev/stdin docker://ghcr.io/TristanCacqueray/logreduce:latest
+            ${container} | gzip --fast | skopeo copy docker-archive:/dev/stdin docker://ghcr.io/TristanCacqueray/logreduce:latest
             skopeo copy docker://ghcr.io/TristanCacqueray/logreduce:latest docker://ghcr.io/TristanCacqueray/logreduce:${api-info.version}
           '';
 
