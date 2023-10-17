@@ -135,7 +135,7 @@
         });
 
         container = pkgs.dockerTools.streamLayeredImage {
-          name = "ghcr.io/logreduce/logreduce";
+          name = "ghcr.io/TristanCacqueray/logreduce";
           contents = [ api (web true) ];
           tag = "latest";
           created = "now";
@@ -175,8 +175,8 @@
           pkgs.writeShellScriptBin "logreduce-release" ''
             export PATH=$PATH:${pkgs.gzip}/bin:${pkgs.skopeo}/bin
             echo $GH_TOKEN | skopeo login --username $GH_USERNAME --password-stdin ghcr.io
-            ./${container} | gzip --fast | skopeo copy docker-archive:/dev/stdin docker://ghcr.io/logreduce/logreduce:latest
-            skopeo copy docker://ghcr.io/logreduce/logreduce:latest docker://ghcr.io/logreduce/logreduce:${api-info.version}
+            ./${container} | gzip --fast | skopeo copy docker-archive:/dev/stdin docker://ghcr.io/TristanCacqueray/logreduce:latest
+            skopeo copy docker://ghcr.io/TristanCacqueray/logreduce:latest docker://ghcr.io/TristanCacqueray/logreduce:${api-info.version}
           '';
 
       in {
