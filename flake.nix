@@ -174,9 +174,16 @@
         publish-container-release =
           pkgs.writeShellScriptBin "logreduce-release" ''
             export PATH=$PATH:${pkgs.gzip}/bin:${pkgs.skopeo}/bin
+            IMAGE="docker://ghcr.io/tristancacqueray/logreduce"
+
+            echo "Logging to registry..."
             echo $GH_TOKEN | skopeo login --username $GH_USERNAME --password-stdin ghcr.io
-            ${container} | gzip --fast | skopeo copy docker-archive:/dev/stdin docker://ghcr.io/TristanCacqueray/logreduce:latest
-            skopeo copy docker://ghcr.io/TristanCacqueray/logreduce:latest docker://ghcr.io/TristanCacqueray/logreduce:${api-info.version}
+
+            echo "Building and publishing the image..."
+            ${container} | gzip --fast | skopeo copy docker-archive:/dev/stdin $IMAGE:${api-info.version}
+
+            echo "Tagging latest"
+            skopeo copy $IMAGE:${api-info.version} $IMAGE:latest
           '';
 
       in {
