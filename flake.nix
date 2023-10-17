@@ -101,25 +101,28 @@
           doCheck = false;
           CARGO_BUILD_TARGET = "wasm32-unknown-unknown";
         });
-        web = craneLib.buildTrunkPackage (web-info // {
-          cargoArtifacts = cargoArtifactsWasm;
-          trunkIndexPath = "./index.html";
-          # Start the build relative to the crate to take the tailwind.config.js into account.
-          preBuild = "cd crates/web";
-          buildInputs = [ pkgs.tailwindcss ];
-          # Fixup the dist output for a publishable package.
-          postInstall = ''
-            rm $out/index.html
-            mv $out/*.js $out/logreduce-web.js
-            # remove hash from import url
-            sed -e 's/logreduce.*bg\.wasm/logreduce-web.wasm/' -i $out/logreduce-web.js
-            mv $out/*.wasm $out/logreduce-web.wasm
-            mv $out/*.css $out/logreduce-web.css
-            cp ${self}/LICENSE $out
-            cp ${self}/crates/web/README.md $out
-            cp ${web-package-json} $out/package.json
-          '';
-        });
+        web = api_client:
+          craneLib.buildTrunkPackage (web-info // {
+            cargoArtifacts = cargoArtifactsWasm;
+            trunkIndexPath = "./index.html";
+            # Start the build relative to the crate to take the tailwind.config.js into account.
+            preBuild = "cd crates/web";
+            trunkExtraBuildArgs =
+              if api_client then "" else "--no-default-features";
+            buildInputs = [ pkgs.tailwindcss ];
+            # Fixup the dist output for a publishable package.
+            postInstall = ''
+              rm $out/index.html
+              mv $out/*.js $out/logreduce-web.js
+              # remove hash from import url
+              sed -e 's/logreduce.*bg\.wasm/logreduce-web.wasm/' -i $out/logreduce-web.js
+              mv $out/*.wasm $out/logreduce-web.wasm
+              mv $out/*.css $out/logreduce-web.css
+              cp ${self}/LICENSE $out
+              cp ${self}/crates/web/README.md $out
+              cp ${web-package-json} $out/package.json
+            '';
+          });
 
         api-info = base-info // {
           src = src;
@@ -134,12 +137,12 @@
 
         container = pkgs.dockerTools.streamLayeredImage {
           name = "ghcr.io/logreduce/logreduce";
-          contents = [ api web ];
+          contents = [ api (web true) ];
           tag = "latest";
           created = "now";
           extraCommands = "mkdir 1777 data";
           config.Entrypoint = [ "logreduce-api" ];
-          config.Env = [ "LOGREDUCE_ASSETS=${web}/" ];
+          config.Env = [ "LOGREDUCE_ASSETS=${web true}/" ];
           config.Labels = {
             "org.opencontainers.image.source" =
               "https://github.com/logreduce/logreduce";
@@ -172,7 +175,8 @@
       in {
         defaultPackage = exe;
         packages.api = api;
-        packages.web = web;
+        packages.web = (web false);
+        packages.web_api = (web true);
         # use with:
         # $(nix build .#container) | podman load
         # or publish directly with:
