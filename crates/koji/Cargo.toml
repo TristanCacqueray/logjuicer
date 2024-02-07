@@ -1,0 +1,30 @@
+[package]
+name = "koji-build"
+version = "0.1.0"
+
+license = "Apache-2.0"
+repository = "https://github.com/logjuicer/logjuicer"
+documentation = "https://docs.rs/koji-build/"
+authors = ["TristanCacqueray"]
+
+description = "Decoders and Iterators for https://koji.fedoraproject.org/koji/"
+
+keywords = ["tree-sitter", "rpm"]
+categories = ["api-bindings", "development-tools"]
+
+edition = "2018"
+
+[lib]
+name = "koji_build"
+path = "src/koji_build.rs"
+
+[dependencies]
+tree-sitter = "0"
+tree-sitter-html = "0"
+ureq = { workspace = true }
+chrono = { workspace = true }
+serde = { workspace = true }
+url = { workspace = true, features = ["serde"] }
+
+[dev-dependencies]
+mockito = { workspace = true }
