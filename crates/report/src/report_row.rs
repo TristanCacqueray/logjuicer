@@ -80,11 +80,27 @@ impl From<&std::path::Path> for FileSize {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ReportKind {
+    Target(String),
+    Similarity,
+}
+
+impl From<String> for ReportKind {
+    fn from(value: String) -> Self {
+        match value.as_str() {
+            "similarity" => ReportKind::Similarity,
+            _ => ReportKind::Target(value),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ReportRow {
     pub id: ReportID,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
-    pub target: Box<str>,
+    pub target: ReportKind,
     pub baseline: Box<str>,
     pub anomaly_count: i64,
     pub status: ReportStatus,
