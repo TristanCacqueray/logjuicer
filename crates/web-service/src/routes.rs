@@ -12,7 +12,7 @@ use tokio::fs::File;
 
 use logjuicer_report::report_row::{ReportID, ReportRow, ReportStatus};
 
-use crate::worker::Workers;
+use crate::worker::{report_path, Workers};
 
 type Error = (StatusCode, String);
 type Result<T> = std::result::Result<T, Error>;
@@ -39,7 +39,7 @@ pub async fn report_get(
     State(workers): State<Workers>,
     Path(report_id): Path<ReportID>,
 ) -> Result<axum::response::Response> {
-    let fp = format!("{}/{}.gz", workers.storage_dir, report_id);
+    let fp = report_path(&workers.storage_dir, report_id);
     if let Ok(file) = File::open(&fp).await {
         // The file exists, stream its content...
 
@@ -101,6 +101,35 @@ pub async fn report_new(
                 .await
                 .map_err(handle_db_error)?;
             workers.submit(report_id, &args.target, args.baseline.as_deref());
+            Ok(Json((report_id, ReportStatus::Pending)))
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct NewSimilarityQuery {
+    reports: String,
+}
+
+pub async fn similarity_new(
+    State(workers): State<Workers>,
+    Query(args): Query<NewSimilarityQuery>,
+) -> Result<Json<(ReportID, ReportStatus)>> {
+    let report = workers
+        .db
+        .lookup_report("similarity", &args.reports)
+        .await
+        .map_err(handle_db_error)?;
+    match report {
+        Some(report) => Ok(Json(report)),
+        None => {
+            tracing::info!(reports = args.reports, "Creating a new similarity report");
+            let report_id = workers
+                .db
+                .initialize_report("similarity", &args.reports)
+                .await
+                .map_err(handle_db_error)?;
+            workers.submit(report_id, "similarity", Some(&args.reports));
             Ok(Json((report_id, ReportStatus::Pending)))
         }
     }

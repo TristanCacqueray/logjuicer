@@ -4,11 +4,14 @@
 use itertools::Itertools;
 use logjuicer_model::config::DiskSizeLimit;
 use logjuicer_model::env::TargetEnv;
+use logjuicer_model::similarity::create_similarity_report;
 use logjuicer_model::ModelF;
 use logjuicer_report::model_row::ContentID;
 use logjuicer_report::report_row::FileSize;
 use logjuicer_report::Content;
+use logjuicer_report::SimilarityReport;
 use std::collections::BTreeMap;
+use std::path::PathBuf;
 use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
 use std::sync::RwLock;
@@ -137,10 +140,16 @@ impl Workers {
                 let (status, count, size) =
                     match process_report_safe(&penv, &env, &target, baseline) {
                         Ok(report) => {
-                            let count = report.anomaly_count();
                             let fp = format!("{}/{}.gz", penv.storage_dir, report_id);
                             let path = std::path::Path::new(&fp);
-                            let (status, size) = if let Err(err) = report.save(path) {
+                            let (count, save_result) = match report {
+                                ProcessResult::NewReport(report) => {
+                                    (report.anomaly_count(), report.save(path))
+                                }
+                                ProcessResult::NewSimilarity(_) => todo!(),
+                            };
+                            let path = std::path::Path::new(&fp);
+                            let (status, size) = if let Err(err) = save_result {
                                 tracing::error!("{}: failed to save report: {}", fp, err);
                                 monitor.emit(format!("Error: saving failed: {}", err).into());
                                 (
@@ -222,14 +231,21 @@ impl ProcessMonitor {
     }
 }
 
+#[allow(clippy::large_enum_variant)]
+enum ProcessResult {
+    NewReport(Report),
+    NewSimilarity(SimilarityReport),
+}
+
 fn process_report_safe(
     penv: &ProcessEnv,
     env: &EnvConfig,
     target: &str,
     baseline: Option<&str>,
-) -> Result<Report, String> {
-    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        process_report(penv, env, target, baseline)
+) -> Result<ProcessResult, String> {
+    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| match target {
+        "similarity" => process_similarity(penv, baseline).map(ProcessResult::NewSimilarity),
+        _ => process_report(penv, env, target, baseline).map(ProcessResult::NewReport),
     })) {
         Ok(res) => res,
         Err(err) => Err(format!(
@@ -237,6 +253,29 @@ fn process_report_safe(
             err.downcast::<&str>().unwrap_or(Box::new("unknown"))
         )),
     }
+}
+
+fn process_similarity(
+    penv: &ProcessEnv,
+    baseline: Option<&str>,
+) -> Result<SimilarityReport, String> {
+    let baseline = baseline.ok_or("Empty reports list".to_string())?;
+    let reports: Vec<Report> = baseline
+        .split(':')
+        .map(|id| {
+            <ReportID as std::str::FromStr>::from_str(id)
+                .map_err(|e| format!("{id}: invalid id: {e}"))
+        })
+        .map(|rid| {
+            rid.and_then(|rid| {
+                let fp = report_path(&penv.storage_dir, rid);
+                Report::load(Into::<PathBuf>::into(&fp).as_path())
+                    .map_err(|e| format!("{fp}: loading failed: {e}"))
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let reports: Vec<&Report> = reports.iter().collect();
+    Ok(create_similarity_report(&reports))
 }
 
 fn process_report(
@@ -409,4 +448,8 @@ fn do_process_model(
         .block_on(penv.db.add_model(content_id, size))
         .map_err(|e| format!("Adding the model to the db failed: {:?}", e))?;
     Ok(model)
+}
+
+pub fn report_path(storage_dir: &str, rid: ReportID) -> String {
+    format!("{}/{}.gz", storage_dir, rid)
 }
