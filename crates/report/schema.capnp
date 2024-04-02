@@ -5,6 +5,9 @@ struct Property(Value) {
   value @1 :Value;
 }
 
+struct SimilarityReport {
+}
+
 struct Report {
   createdAt         @0 :UInt64;
   runTime           @1 :UInt64;
